@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 Hayaki Saito
+ * Copyright (c) 2014-2018 Hayaki Saito
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -280,11 +280,11 @@ sixel_dither_new(
     }
 
     if (ncolors == (-1)) {
-        ncolors = SIXEL_PALETTE_MAX;
+        ncolors = 256;
         quality_mode = SIXEL_QUALITY_HIGHCOLOR;
     } else {
         if (ncolors > SIXEL_PALETTE_MAX) {
-            ncolors = SIXEL_PALETTE_MAX;
+            ncolors = 256;
         } else if (ncolors < 2) {
             ncolors = 2;
         }
@@ -710,7 +710,7 @@ sixel_dither_set_transparent(
 
 
 /* set transparent */
-SIXELAPI sixel_index_t *
+SIXELAPI unsigned char *
 sixel_dither_apply_palette(
     sixel_dither_t  /* in */ *dither,
     unsigned char   /* in */ *pixels,
@@ -719,7 +719,7 @@ sixel_dither_apply_palette(
 {
     SIXELSTATUS status = SIXEL_FALSE;
     size_t bufsize;
-    sixel_index_t *dest = NULL;
+    unsigned char *dest = NULL;
     int ncolors;
     unsigned char *normalized_pixels = NULL;
     unsigned char *input_pixels;
@@ -733,8 +733,8 @@ sixel_dither_apply_palette(
 
     sixel_dither_ref(dither);
 
-    bufsize = (size_t)(width * height) * sizeof(sixel_index_t);
-    dest = (sixel_index_t *)sixel_allocator_malloc(dither->allocator, bufsize);
+    bufsize = (size_t)(width * height) * sizeof(unsigned char);
+    dest = (unsigned char *)sixel_allocator_malloc(dither->allocator, bufsize);
     if (dest == NULL) {
         sixel_helper_set_additional_message(
             "sixel_dither_new: sixel_allocator_malloc() failed.");
@@ -868,7 +868,7 @@ error:
 }
 
 
-int
+SIXELAPI int
 sixel_dither_tests_main(void)
 {
     int nret = EXIT_FAILURE;
