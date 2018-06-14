@@ -342,7 +342,7 @@ static SIXELSTATUS
 output_sixel(unsigned char *pixbuf, int width, int height,
              int ncolors, int pixelformat)
 {
-    sixel_output_t *context = NULL;
+    sixel_output_t *output = NULL;
     sixel_dither_t *dither = NULL;
     SIXELSTATUS status;
 
