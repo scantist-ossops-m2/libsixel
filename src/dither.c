@@ -284,7 +284,7 @@ sixel_dither_new(
         quality_mode = SIXEL_QUALITY_HIGHCOLOR;
     } else {
         if (ncolors > SIXEL_PALETTE_MAX) {
-            ncolors = 256;
+            ncolors = SIXEL_PALETTE_MAX;
         } else if (ncolors < 2) {
             ncolors = 2;
         }
