@@ -225,6 +225,7 @@ sixel_parse_x_colorspec(
     }
 
     status = SIXEL_OK;
+
 end:
     sixel_allocator_free(allocator, buf);
 
@@ -567,6 +568,7 @@ sixel_encoder_prepare_palette(
     if (SIXEL_FAILED(status)) {
         goto end;
     }
+
     status = sixel_dither_initialize(*dither,
                                      sixel_frame_get_pixels(frame),
                                      sixel_frame_get_width(frame),
@@ -1157,10 +1159,7 @@ sixel_encoder_new(
                                          env_default_bgcolor,
                                          allocator);
         if (SIXEL_FAILED(status)) {
-            sixel_allocator_free(allocator, *ppencoder);
-            sixel_allocator_unref(allocator);
-            *ppencoder = NULL;
-            goto end;
+            goto error;
         }
     }
 
@@ -1173,10 +1172,15 @@ sixel_encoder_new(
         }
     }
 
-    sixel_allocator_ref(allocator);
-
     /* success */
     status = SIXEL_OK;
+
+    goto end;
+
+error:
+    sixel_allocator_free(allocator, *ppencoder);
+    sixel_allocator_unref(allocator);
+    *ppencoder = NULL;
 
 end:
     return status;
