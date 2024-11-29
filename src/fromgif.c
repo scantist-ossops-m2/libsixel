@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 #include "frame.h"
 #include "fromgif.h"
 
@@ -58,6 +59,10 @@ typedef struct
    unsigned char suffix;
 } gif_lzw;
 
+enum {
+   gif_lzw_max_code_size = 12
+};
+
 typedef struct
 {
    int w, h;
@@ -65,7 +70,7 @@ typedef struct
    int flags, bgindex, ratio, transparent, eflags;
    unsigned char pal[256][3];
    unsigned char lpal[256][3];
-   gif_lzw codes[4096];
+   gif_lzw codes[1 << gif_lzw_max_code_size];
    unsigned char *color_table;
    int parse, step;
    int lflags;
@@ -174,14 +179,16 @@ gif_init_frame(
     SIXELSTATUS status = SIXEL_OK;
     int i;
     int ncolors;
+    size_t palette_size, frame_size;
 
     frame->delay = pg->delay;
     ncolors = 2 << (pg->flags & 7);
+    palette_size = (size_t)ncolors * 3;
     if (frame->palette == NULL) {
-        frame->palette = (unsigned char *)sixel_allocator_malloc(frame->allocator, (size_t)(ncolors * 3));
+        frame->palette = (unsigned char *)sixel_allocator_malloc(frame->allocator, palette_size);
     } else if (frame->ncolors < ncolors) {
         sixel_allocator_free(frame->allocator, frame->palette);
-        frame->palette = (unsigned char *)sixel_allocator_malloc(frame->allocator, (size_t)(ncolors * 3));
+        frame->palette = (unsigned char *)sixel_allocator_malloc(frame->allocator, palette_size);
     }
     if (frame->palette == NULL) {
         sixel_helper_set_additional_message(
@@ -193,15 +200,15 @@ gif_init_frame(
     if (frame->ncolors <= reqcolors && fuse_palette) {
         frame->pixelformat = SIXEL_PIXELFORMAT_PAL8;
         sixel_allocator_free(frame->allocator, frame->pixels);
-        frame->pixels = (unsigned char *)sixel_allocator_malloc(frame->allocator,
-                                                                (size_t)(frame->width * frame->height));
+        frame_size = (size_t)frame->width * (size_t)frame->height;
+        frame->pixels = (unsigned char *)sixel_allocator_malloc(frame->allocator, frame_size);
         if (frame->pixels == NULL) {
             sixel_helper_set_additional_message(
                 "sixel_allocator_malloc() failed in gif_init_frame().");
             status = SIXEL_BAD_ALLOCATION;
             goto end;
         }
-        memcpy(frame->pixels, pg->out, (size_t)(frame->width * frame->height));
+        memcpy(frame->pixels, pg->out, frame_size);
 
         for (i = 0; i < frame->ncolors; ++i) {
             frame->palette[i * 3 + 0] = pg->color_table[i * 3 + 2];
@@ -231,8 +238,8 @@ gif_init_frame(
         }
     } else {
         frame->pixelformat = SIXEL_PIXELFORMAT_RGB888;
-        frame->pixels = (unsigned char *)sixel_allocator_malloc(frame->allocator,
-                                                                (size_t)(pg->w * pg->h * 3));
+        frame_size = (size_t)pg->w * (size_t)pg->h * 3;
+        frame->pixels = (unsigned char *)sixel_allocator_malloc(frame->allocator, frame_size);
         if (frame->pixels == NULL) {
             sixel_helper_set_additional_message(
                 "sixel_allocator_malloc() failed in gif_init_frame().");
@@ -299,7 +306,15 @@ gif_process_raster(
     signed int codesize, codemask, avail, oldcode, bits, valid_bits, clear;
     gif_lzw *p;
 
+    /* LZW Minimum Code Size */
     lzw_cs = gif_get8(s);
+    if (lzw_cs > gif_lzw_max_code_size) {
+        sixel_helper_set_additional_message(
+            "Unsupported GIF (LZW code size)");
+        status = SIXEL_RUNTIME_ERROR;
+        goto end;
+    }
+
     clear = 1 << lzw_cs;
     first = 1;
     codesize = lzw_cs + 1;
@@ -353,7 +368,7 @@ gif_process_raster(
                     goto end;
                 }
                 if (oldcode >= 0) {
-                    if (avail < 4096) {
+                    if (avail < (1 << gif_lzw_max_code_size)) {
                         p = &g->codes[avail++];
                         p->prefix = (signed short) oldcode;
                         p->first = g->codes[oldcode].first;
