@@ -304,26 +304,26 @@ image_buffer_resize(
     if (width > image->width) {  /* if width is extended */
         for (n = 0; n < min_height; ++n) {
             /* copy from source image */
-            memcpy(alt_buffer + width * n,
-                   image->data + image->width * n,
+            memcpy(alt_buffer + (size_t)width * n,
+                   image->data + (size_t)image->width * n,
                    (size_t)image->width);
             /* fill extended area with background color */
-            memset(alt_buffer + width * n + image->width,
+            memset(alt_buffer + (size_t)width * n + image->width,
                    bgindex,
                    (size_t)(width - image->width));
         }
     } else {
         for (n = 0; n < min_height; ++n) {
             /* copy from source image */
-            memcpy(alt_buffer + width * n,
-                   image->data + image->width * n,
+            memcpy(alt_buffer + (size_t)width * n,
+                   image->data + (size_t)image->width * n,
                    (size_t)width);
         }
     }
 
     if (height > image->height) {  /* if height is extended */
         /* fill extended area with background color */
-        memset(alt_buffer + width * image->height,
+        memset(alt_buffer + (size_t)width * image->height,
                bgindex,
                (size_t)(width * (height - image->height)));
     }
@@ -386,7 +386,7 @@ sixel_decode_raw_impl(
     int sx;
     int sy;
     int c;
-    int pos;
+    size_t pos;
     unsigned char *p0 = p;
 
     while (p < p0 + len) {
@@ -581,7 +581,7 @@ sixel_decode_raw_impl(
                         if (context->repeat_count <= 1) {
                             for (i = 0; i < 6; i++) {
                                 if ((bits & sixel_vertical_mask) != 0) {
-                                    pos = image->width * (context->pos_y + i) + context->pos_x;
+                                    pos = (size_t)image->width * (context->pos_y + i) + context->pos_x;
                                     image->data[pos] = context->color_index;
                                     if (context->max_x < context->pos_x) {
                                         context->max_x = context->pos_x;
@@ -856,31 +856,33 @@ sixel_decode_raw(
     image_buffer_t image;
     int n;
 
+    image.data = NULL;
+
     if (allocator) {
         sixel_allocator_ref(allocator);
     } else {
         status = sixel_allocator_new(&allocator, NULL, NULL, NULL, NULL);
         if (SIXEL_FAILED(status)) {
             allocator = NULL;
-            goto end;
+            goto error;
         }
     }
 
     /* parser context initialization */
     status = parser_context_init(&context);
     if (SIXEL_FAILED(status)) {
-        goto end;
+        goto error;
     }
 
     /* buffer initialization */
     status = image_buffer_init(&image, 1, 1, context.bgindex, allocator);
     if (SIXEL_FAILED(status)) {
-        goto end;
+        goto error;
     }
 
     status = sixel_decode_raw_impl(p, len, &image, &context, allocator);
     if (SIXEL_FAILED(status)) {
-        goto end;
+        goto error;
     }
 
     *ncolors = image.ncolors + 1;
@@ -890,7 +892,7 @@ sixel_decode_raw(
         sixel_helper_set_additional_message(
             "sixel_deocde_raw: sixel_allocator_malloc() failed.");
         status = SIXEL_BAD_ALLOCATION;
-        goto end;
+        goto error;
     }
     for (n = 0; n < *ncolors; ++n) {
         (*palette)[n * 3 + 0] = image.palette[n] >> 16 & 0xff;
@@ -903,6 +905,11 @@ sixel_decode_raw(
     *pixels = image.data;
 
     status = SIXEL_OK;
+    goto end;
+
+error:
+    free(image.data);
+    image.data = NULL;
 
 end:
     sixel_allocator_unref(allocator);
